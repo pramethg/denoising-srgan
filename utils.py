@@ -1,4 +1,5 @@
 import os
+import json
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
@@ -67,8 +68,45 @@ def arg_parse():
     parser.add_argument('--eval', action = 'store_true', help = 'Evaluate the model on test data')
     return parser
 
-def plot_training_curve(args):
-    pass
+def test_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--save_dir', type = str, default = 'test_results', help = 'Directory to save results')
+    parser.add_argument('--data_root', type = str, default = 'data', help = 'Data root directory')
+    parser.add_argument('--cuda', action = 'store_true', default = 'cpu', help = 'Device to train on')
+    parser.add_argument('--seed', type = int, default = 1999, help = 'Random seed')
+    parser.add_argument('--batch_size', type = int, default = 8, help = 'Batch size')
+    parser.add_argument('--img_size', type = int, default = 512, help = 'Resizing images for training')
+    parser.add_argument('--noise_level', type = float, default = 0.25, help = 'Noise level for training')
+    parser.add_argument('--model_dir', type = str, default = 'results', help = 'Directory to load model')
+    return parser
 
-def visualize(args):
-    pass
+def plot_psnr(file = 'results', title = 'PSNR vs Epochs'):
+    with open(os.path.join(file, "psnr_train.json"), 'r') as f:
+        psnr = json.load(f)
+    with open(os.path.join(file, "psnr_train_denoised.json"), 'r') as f:
+        psnr_denoised = json.load(f)
+    psnr_arr = [psnr[i] for i in psnr.keys()]
+    psnr_arr_denoised = [psnr_denoised[i] for i in psnr_denoised.keys()]
+    plt.figure(figsize = (8, 5))
+    plt.plot(np.arange(len(psnr_arr)), psnr_arr, color = 'blue')
+    plt.plot(np.arange(len(psnr_arr_denoised)), psnr_arr_denoised, color = 'green')
+    plt.xlabel('Epochs')
+    plt.ylabel('PSNR')
+    plt.title(title)
+    plt.legend(['Ground Truth vs Input', 'Ground Truth vs Output'])
+    plt.show()
+
+def visualize(input, output, gtruth, index = [0, 0, 0], save_dir = None):
+    plt.figure(figsize = (15, 4))
+    plt.subplot(1, 3, 1)
+    plt.imshow(input[index[0]][index[1], index[2]], cmap = "gray")
+    plt.title("Input")
+    plt.subplot(1, 3, 2)
+    plt.imshow(output[index[0]][index[1], index[2]], cmap = "gray")
+    plt.title("Output")
+    plt.subplot(1, 3, 3)
+    plt.imshow(gtruth[index[0]][index[1], index[2]], cmap = "gray")
+    plt.title("Ground Truth")
+    plt.show()
+    if save_dir is not None:
+        plt.savefig(os.path.join(save_dir, "visualize.png"))

@@ -14,7 +14,7 @@ from utils import *
 from models import *
 
 if __name__ == "__main__":
-    args = arg_parse().parse_args(args = "--cuda --num_epochs 30 --eval --batch_size 32 --img_size 128 --noise_level 0.1 --save_model".split())
+    args = arg_parse().parse_args(args = "--cuda --num_epochs 30 --eval --batch_size 32 --img_size 128 --noise_level 0.25 --save_model".split())
     print(args)
 
     TRAIN_DIR = os.path.join(args.data_root, 'train')
