@@ -34,6 +34,13 @@ class MSE:
 
     def __call__(self, img1, img2):
         return torch.mean((img1 - img2) ** 2)
+    
+def psnr(img1, img2, max_val = 1.0):
+    mse = np.mean((img1 - img2) ** 2)
+    return 20 * np.log10(max_val / np.sqrt(mse))
+
+def mse(img1, img2):
+    return np.mean((img1 - img2) ** 2)
 
 class SSIM:
     def __init__(self):
@@ -57,6 +64,7 @@ def arg_parse():
     parser.add_argument('--num_workers', type = int, default = 4, help = 'Number of workers for dataloader')
     parser.add_argument('--noise_level', type = float, default = 0.25, help = 'Noise level for training')
     parser.add_argument('--lr', type = float, default = 1e-4, help = 'Learning rate')
+    parser.add_argument('--eval', action = 'store_true', help = 'Evaluate the model on test data')
     return parser
 
 def plot_training_curve(args):

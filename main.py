@@ -14,7 +14,7 @@ from utils import *
 from models import *
 
 if __name__ == "__main__":
-    args = arg_parse().parse_args(args = "--cuda --num_epochs 30 --train --batch_size 32 --img_size 128 --noise_level 0.1 --save_model".split())
+    args = arg_parse().parse_args(args = "--cuda --num_epochs 30 --eval --batch_size 32 --img_size 128 --noise_level 0.1 --save_model".split())
     print(args)
 
     TRAIN_DIR = os.path.join(args.data_root, 'train')
@@ -29,10 +29,17 @@ if __name__ == "__main__":
                 transforms.ToTensor(),
                 transforms.Normalize((0.5, ), (0.5, ))
             ])
+        
+    test_transform = transforms.Compose([
+                transforms.Resize((512, 512)),
+                transforms.Grayscale(),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, ), (0.5, ))
+            ])
     train_dataset = ImageFolder(TRAIN_DIR, transform = transform)
-    test_dataset = ImageFolder(TEST_DIR, transform = transform)
+    test_dataset = ImageFolder(TEST_DIR, transform = test_transform)
     train_loader = DataLoader(train_dataset, batch_size = args.batch_size, shuffle = True, pin_memory = True, num_workers = args.num_workers)
-    test_loader = DataLoader(test_dataset, batch_size = args.batch_size, shuffle = True)
+    test_loader = DataLoader(test_dataset, batch_size = args.batch_size // 4, shuffle = True)
 
     if args.cuda:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -110,3 +117,28 @@ if __name__ == "__main__":
 
         with open(os.path.join(args.save_dir, 'psnr_train_denoised.json'), 'w') as f:
             json.dump(psnr_train_denoised, f)
+    
+    if args.eval:
+        generator.load_state_dict(torch.load(os.path.join(args.save_dir, 'generator.pth')))
+        generator.eval()
+
+        psnr_test = []
+        psnr_test_denoised = []
+        mse_test_denoised = []
+        inputs, outputs, ground_truths = [], [], []
+
+        loop = tqdm(test_loader, leave = True)
+        for idx, (img, _) in enumerate(loop):
+            ground_truth = torch.clone(img).to(device)
+            img = img.to(device)
+            img = img + (args.noise_level * torch.normal(0, 1, img.shape)).to(device)
+            gen_denoised = generator(img)
+            inputs.append(img.detach().cpu().numpy())
+            outputs.append(gen_denoised.detach().cpu().numpy())
+            ground_truths.append(ground_truth.detach().cpu().numpy())
+
+            psnr_test.append((PSNR(max_val = 1)(ground_truth, img).detach().cpu().numpy()).item())
+            psnr_test_denoised.append((PSNR(max_val = 1)(ground_truth, gen_denoised).detach().cpu().numpy()).item())
+            mse_test_denoised.append((MSE()(ground_truth, gen_denoised).detach().cpu().numpy()).item())
+            del img, gen_denoised, ground_truth
+        print(f"PSNR: {np.mean(psnr_test)} PSNR Denoised: {np.mean(psnr_test_denoised)} MSE Denoised: {np.mean(mse_test_denoised)}")
