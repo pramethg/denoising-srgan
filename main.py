@@ -1,4 +1,5 @@
 import os
+import json
 import numpy as np
 from tqdm import tqdm
 import torch
@@ -13,7 +14,7 @@ from utils import *
 from models import *
 
 if __name__ == "__main__":
-    args = arg_parse().parse_args(args = "--cuda --num_epochs 5 --train --batch_size 16".split())
+    args = arg_parse().parse_args(args = "--cuda --num_epochs 30 --train --batch_size 32 --img_size 128 --noise_level 0.1 --save_model".split())
     print(args)
 
     TRAIN_DIR = os.path.join(args.data_root, 'train')
@@ -61,6 +62,7 @@ if __name__ == "__main__":
         disc_optimizer = optim.Adam(discriminator.parameters(), lr = args.lr, betas = (0.9, 0.999))
 
         for epoch in range(args.num_epochs):
+            psnr_train_list, psnr_train_denoised_list = [], []
             loop = tqdm(train_loader, leave = True)
             for idx, (img, _) in enumerate(loop):
                 ground_truth = torch.clone(img).to(device)
@@ -92,5 +94,19 @@ if __name__ == "__main__":
                 loop.set_description(f"Epoch [{epoch + 1}/{args.num_epochs}]")
                 loop.set_postfix(gen_loss = gen_loss.item(), disc_loss = disc_loss.item(), l2_loss = l2_loss.item(), adversarial_loss = adversarial_loss.item())
 
-                psnr_train[epoch] = np.mean(PSNR(max_val = 1)(ground_truth, img).detach().cpu().numpy())
-                psnr_train_denoised[epoch] = np.mean(PSNR(max_val = 1)(ground_truth, gen_denoised).detach().cpu().numpy())
+                psnr_train_list.append((PSNR(max_val = 1)(ground_truth, img).detach().cpu().numpy()).item())
+                psnr_train_denoised_list.append((PSNR(max_val = 1)(ground_truth, gen_denoised).detach().cpu().numpy()).item())
+
+            psnr_train[epoch] = np.mean(psnr_train_list)
+            psnr_train_denoised[epoch] = np.mean(psnr_train_denoised_list)
+            print(f"Epoch [{epoch + 1}/{args.num_epochs}] PSNR: {psnr_train[epoch]} PSNR Denoised: {psnr_train_denoised[epoch]}")
+
+        if args.save_model:
+            torch.save(generator.state_dict(), os.path.join(args.save_dir, 'generator.pth'))
+            torch.save(discriminator.state_dict(), os.path.join(args.save_dir, 'discriminator.pth'))
+
+        with open(os.path.join(args.save_dir, 'psnr_train.json'), 'w') as f:
+            json.dump(psnr_train, f)
+
+        with open(os.path.join(args.save_dir, 'psnr_train_denoised.json'), 'w') as f:
+            json.dump(psnr_train_denoised, f)
