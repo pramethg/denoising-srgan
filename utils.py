@@ -80,18 +80,18 @@ def test_args():
     parser.add_argument('--model_dir', type = str, default = 'results', help = 'Directory to load model')
     return parser
 
-def plot_psnr(file = 'results', title = 'PSNR vs Epochs'):
-    with open(os.path.join(file, "psnr_train.json"), 'r') as f:
-        psnr = json.load(f)
-    with open(os.path.join(file, "psnr_train_denoised.json"), 'r') as f:
-        psnr_denoised = json.load(f)
-    psnr_arr = [psnr[i] for i in psnr.keys()]
-    psnr_arr_denoised = [psnr_denoised[i] for i in psnr_denoised.keys()]
+def plot_stats(file = 'results/psnr_train.json', title = 'PSNR vs Epochs', ylabel = 'PSNR'):
+    with open(file, 'r') as f:
+        stat = json.load(f)
+    with open(file[:-5] + '_denoised.json', 'r') as f:
+        stat_denoised = json.load(f)
+    stat_arr = [stat[i] for i in stat.keys()]
+    stat_arr_denoised = [stat_denoised[i] for i in stat_denoised.keys()]
     plt.figure(figsize = (8, 5))
-    plt.plot(np.arange(len(psnr_arr)), psnr_arr, color = 'blue')
-    plt.plot(np.arange(len(psnr_arr_denoised)), psnr_arr_denoised, color = 'green')
+    plt.plot(np.arange(len(stat_arr)), stat_arr, color = 'blue')
+    plt.plot(np.arange(len(stat_arr_denoised)), stat_arr_denoised, color = 'green')
     plt.xlabel('Epochs')
-    plt.ylabel('PSNR')
+    plt.ylabel(ylabel)
     plt.title(title)
     plt.legend(['Ground Truth vs Input', 'Ground Truth vs Output'])
     plt.show()

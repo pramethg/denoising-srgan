@@ -14,14 +14,41 @@ from utils import *
 from models import *
 
 if __name__ == "__main__":
-    args = arg_parse().parse_args(args = "--cuda --num_epochs 30 --eval --batch_size 32 --img_size 128 --noise_level 0.25 --save_model".split())
+    args = arg_parse().parse_args(args = "--cuda --num_epochs 30 --eval --batch_size 32 --img_size 128 --noise_level 0.2 --save_model --save_dir results_02_noaug".split())
     print(args)
 
     TRAIN_DIR = os.path.join(args.data_root, 'train')
     TEST_DIR = os.path.join(args.data_root, 'test')
 
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+
+    if not os.path.exists(args.save_dir):
+        os.makedirs(args.save_dir)
+
     if args.data_aug:
-        pass
+        train_transform_1 = transforms.Compose([
+                transforms.Resize((args.img_size, args.img_size)),
+                transforms.Grayscale(),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, ), (0.5, ))
+            ])
+        train_transform_2 = transforms.Compose([
+                transforms.Resize((args.img_size, args.img_size)),
+                transforms.Grayscale(),
+                transforms.RandomHorizontalFlip(p = 0.5),
+                transforms.RandomVerticalFlip(p = 0.5),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, ), (0.5, ))
+            ])
+        train_transform_3 = transforms.Compose([
+                transforms.RandomRotation(90),
+                transforms.Resize((args.img_size, args.img_size)),
+                transforms.Grayscale(),
+                transforms.RandomHorizontalFlip(p = 0.5),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, ), (0.5, ))
+            ])
     else:
         transform = transforms.Compose([
                 transforms.Resize((args.img_size, args.img_size)),
@@ -36,7 +63,15 @@ if __name__ == "__main__":
                 transforms.ToTensor(),
                 transforms.Normalize((0.5, ), (0.5, ))
             ])
-    train_dataset = ImageFolder(TRAIN_DIR, transform = transform)
+    
+    if args.data_aug:
+        train_dataset_1 = ImageFolder(TRAIN_DIR, transform = train_transform_1)
+        train_dataset_2 = ImageFolder(TRAIN_DIR, transform = train_transform_2)
+        train_dataset_3 = ImageFolder(TRAIN_DIR, transform = train_transform_3)
+        train_dataset = ConcatDataset([train_dataset_1, train_dataset_2, train_dataset_3])
+    else:
+        train_dataset = ImageFolder(TRAIN_DIR, transform = transform)
+
     test_dataset = ImageFolder(TEST_DIR, transform = test_transform)
     train_loader = DataLoader(train_dataset, batch_size = args.batch_size, shuffle = True, pin_memory = True, num_workers = args.num_workers)
     test_loader = DataLoader(test_dataset, batch_size = args.batch_size // 4, shuffle = True)
@@ -60,8 +95,8 @@ if __name__ == "__main__":
 
         generator.train()
         discriminator.train()
-        psnr_train = {}
-        psnr_train_denoised = {}
+        psnr_train, psnr_train_denoised = {}, {}
+        mse_train, mse_train_denoised = {}, {}
         mse = nn.MSELoss()
         bce = nn.BCEWithLogitsLoss()
         # vgg_loss = VGGLoss()
@@ -70,6 +105,7 @@ if __name__ == "__main__":
 
         for epoch in range(args.num_epochs):
             psnr_train_list, psnr_train_denoised_list = [], []
+            mse_train_list, mse_train_denoised_list = [], []
             loop = tqdm(train_loader, leave = True)
             for idx, (img, _) in enumerate(loop):
                 ground_truth = torch.clone(img).to(device)
@@ -103,9 +139,14 @@ if __name__ == "__main__":
 
                 psnr_train_list.append((PSNR(max_val = 1)(ground_truth, img).detach().cpu().numpy()).item())
                 psnr_train_denoised_list.append((PSNR(max_val = 1)(ground_truth, gen_denoised).detach().cpu().numpy()).item())
+                mse_train_list.append(MSE()(ground_truth, img).detach().cpu().numpy().item())
+                mse_train_denoised_list.append(MSE()(ground_truth, gen_denoised).detach().cpu().numpy().item())
 
             psnr_train[epoch] = np.mean(psnr_train_list)
             psnr_train_denoised[epoch] = np.mean(psnr_train_denoised_list)
+            mse_train[epoch] = np.mean(mse_train_list)
+            mse_train_denoised[epoch] = np.mean(mse_train_denoised_list)
+
             print(f"Epoch [{epoch + 1}/{args.num_epochs}] PSNR: {psnr_train[epoch]} PSNR Denoised: {psnr_train_denoised[epoch]}")
 
         if args.save_model:
@@ -117,6 +158,12 @@ if __name__ == "__main__":
 
         with open(os.path.join(args.save_dir, 'psnr_train_denoised.json'), 'w') as f:
             json.dump(psnr_train_denoised, f)
+
+        with open(os.path.join(args.save_dir, 'mse_train.json'), 'w') as f:
+            json.dump(mse_train, f)
+
+        with open(os.path.join(args.save_dir, 'mse_train_denoised.json'), 'w') as f:
+            json.dump(mse_train_denoised, f)
     
     if args.eval:
         generator.load_state_dict(torch.load(os.path.join(args.save_dir, 'generator.pth')))
