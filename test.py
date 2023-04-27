@@ -10,11 +10,14 @@ from utils import *
 from models import *
 
 if __name__ == "__main__":
-    args = test_args().parse_args(args = '--cuda --noise_level 0.15 --batch_size 8 --seed 1999'.split())
+    args = test_args().parse_args(args = '--noise_level 0.2 --batch_size 8 --seed 1999 --save_dir test_02_noaug'.split())
     print(args)
 
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
+
+    if not os.path.exists(args.save_dir):
+        os.makedirs(args.save_dir)
 
     TEST_DIR = os.path.join(args.data_root, 'test')
     test_transform = transforms.Compose([
@@ -59,4 +62,16 @@ if __name__ == "__main__":
         mse_test.append((MSE()(ground_truth, img).detach().cpu().numpy()).item())
         mse_test_denoised.append((MSE()(ground_truth, gen_denoised).detach().cpu().numpy()).item())
         del img, gen_denoised, ground_truth
+
+    inputs = np.squeeze(np.concatenate(inputs, axis = 0), axis = 1)
+    outputs = np.squeeze(np.concatenate(outputs, axis = 0), axis = 1)
+    ground_truths = np.squeeze(np.concatenate(ground_truths, axis = 0), axis = 1)
+
+    np.save(os.path.join(args.save_dir, "inputs.npy"), inputs)
+    np.save(os.path.join(args.save_dir, "outputs.npy"), outputs)
+    np.save(os.path.join(args.save_dir, "ground_truths.npy"), ground_truths)
+
+    for i in range(0, 360, 10):
+        visualize(inputs, outputs, ground_truths, i, args.save_dir)
+
     print(f"PSNR: {np.mean(psnr_test)} PSNR Denoised: {np.mean(psnr_test_denoised)} MSE Test: {np.mean(mse_test)} MSE Denoised: {np.mean(mse_test_denoised)}")
